@@ -219,18 +219,30 @@ install_composer() {
 
     if command -v composer &> /dev/null; then
         log_success "Composer already installed: $(composer --version)"
-        return
+    else
+        log "Downloading Composer..."
+        cd /tmp
+        curl -sS https://getcomposer.org/installer -o composer-setup.php
+
+        log "Installing Composer globally..."
+        sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
+        rm composer-setup.php
+
+        log_success "Composer installed: $(composer --version)"
     fi
 
-    log "Downloading Composer..."
-    cd /tmp
-    curl -sS https://getcomposer.org/installer -o composer-setup.php
+    # Install Laravel installer globally
+    log "Installing Laravel installer..."
+    composer global require laravel/installer --quiet 2>&1 | tee -a "$LOG_FILE"
 
-    log "Installing Composer globally..."
-    sudo php composer-setup.php --install-dir=/usr/local/bin --filename=composer
-    rm composer-setup.php
+    # Add composer global bin to PATH if not already there
+    if ! echo "$PATH" | grep -q "$HOME/.config/composer/vendor/bin"; then
+        log "Adding Composer global bin to PATH..."
+        echo 'export PATH="$HOME/.config/composer/vendor/bin:$PATH"' >> "$HOME/.bashrc"
+        export PATH="$HOME/.config/composer/vendor/bin:$PATH"
+    fi
 
-    log_success "Composer installed: $(composer --version)"
+    log_success "Laravel installer installed globally"
 }
 
 setup_vhost_system() {

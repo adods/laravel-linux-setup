@@ -9,19 +9,19 @@ Automated installation and configuration script for Laravel development environm
 - **MariaDB** - Latest stable version with passwordless root access
 - **Auto VHost Generation** - Automatically creates virtual hosts when you add projects
 - **File Monitoring** - Systemd service watches your projects directory
-- **Composer** - Latest version installed globally
+- **Composer** - Latest version with Laravel installer included
 - **Per-Project PHP Versions** - Each project can use different PHP versions (8.3 or 8.4)
 
 ## Quick Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/YOUR-USERNAME/laravel-linux-setup/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/adods/laravel-linux-setup/main/install.sh | bash
 ```
 
 Or manually:
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/laravel-linux-setup.git
+git clone https://github.com/adods/laravel-linux-setup.git
 cd laravel-linux-setup
 chmod +x install.sh
 ./install.sh
@@ -61,6 +61,7 @@ chmod +x install.sh
 ### Composer
 - Latest stable version
 - Installed globally
+- Laravel installer included (`laravel new` command available)
 
 ## Usage
 
@@ -322,8 +323,8 @@ MIT License - Feel free to use and modify as needed.
 
 ## Support
 
-- Issues: [GitHub Issues](https://github.com/YOUR-USERNAME/laravel-linux-setup/issues)
-- Discussions: [GitHub Discussions](https://github.com/YOUR-USERNAME/laravel-linux-setup/discussions)
+- Issues: [GitHub Issues](https://github.com/adods/laravel-linux-setup/issues)
+- Discussions: [GitHub Discussions](https://github.com/adods/laravel-linux-setup/discussions)
 
 ## Credits
 
