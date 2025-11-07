@@ -7,6 +7,7 @@ Automated installation and configuration script for Laravel development environm
 - **Apache** - Latest stable version with required modules
 - **PHP 8.3** (default) + **PHP 8.4** - With all Laravel required extensions
 - **MariaDB** - Latest stable version with passwordless root access
+- **Node.js LTS** - Installed via NVM for frontend asset compilation
 - **Auto VHost Generation** - Automatically creates virtual hosts when you add projects
 - **File Monitoring** - Systemd service watches your projects directory
 - **Composer** - Latest version with Laravel installer included
@@ -59,6 +60,11 @@ cd laravel-linux-setup
 - Latest stable version
 - Installed globally
 - Laravel installer included (`laravel new` command available)
+
+### Node.js
+- Installed via NVM (Node Version Manager)
+- LTS version set as default
+- npm included for frontend asset compilation (Vite, etc.)
 
 ## Usage
 

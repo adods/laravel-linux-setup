@@ -107,6 +107,8 @@ get_user_input() {
     echo "  • Apache (latest stable version)"
     echo "  • PHP 8.3 (default) + PHP 8.4 (optional)"
     echo "  • MariaDB (latest stable version)"
+    echo "  • Composer + Laravel installer"
+    echo "  • Node.js LTS + npm (via NVM)"
     echo "  • Auto VHost generation system"
     echo ""
 
@@ -246,6 +248,15 @@ install_composer() {
     log_success "Laravel installer installed globally"
 }
 
+install_nodejs() {
+    if [[ -f "$SCRIPTS_DIR/install-nodejs.sh" ]]; then
+        log "Running Node.js installation module..."
+        bash "$SCRIPTS_DIR/install-nodejs.sh" 2>&1 | tee -a "$LOG_FILE"
+    else
+        log_warning "Node.js installation script not found. Skipping..."
+    fi
+}
+
 setup_vhost_system() {
     print_header "Setting Up Auto VHost System"
 
@@ -277,6 +288,7 @@ print_summary() {
     echo -e "${GREEN}✓ PHP 8.3 (default) + PHP 8.4 installed${NC}"
     echo -e "${GREEN}✓ MariaDB installed and configured${NC}"
     echo -e "${GREEN}✓ Composer installed${NC}"
+    echo -e "${GREEN}✓ Node.js LTS + npm installed${NC}"
     echo -e "${GREEN}✓ Auto VHost system configured${NC}"
     echo ""
     echo -e "${CYAN}Project Directory:${NC} $PROJECT_DIR"
@@ -326,6 +338,7 @@ main() {
     install_php
     install_mariadb
     install_composer
+    install_nodejs
     setup_vhost_system
     setup_permissions
 
