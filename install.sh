@@ -148,10 +148,11 @@ get_user_input() {
     echo "  • VHost Domain: <project-name>.test"
     echo ""
 
-    echo -e "${YELLOW}Proceed with installation? (y/N)${NC}"
+    echo -e "${YELLOW}Proceed with installation? (Y/n)${NC}"
     read -p "> " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    # Default to yes if empty, only cancel if explicitly n/N
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         log "Installation cancelled by user."
         exit 0
     fi

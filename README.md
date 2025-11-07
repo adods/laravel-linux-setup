@@ -14,18 +14,15 @@ Automated installation and configuration script for Laravel development environm
 
 ## Quick Install
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/adods/laravel-linux-setup/main/install.sh | bash
-```
-
-Or manually:
+**Recommended method:**
 
 ```bash
 git clone https://github.com/adods/laravel-linux-setup.git
 cd laravel-linux-setup
-chmod +x install.sh
 ./install.sh
 ```
+
+> **Important:** Clone the repository instead of just downloading `install.sh` to ensure all required script modules are available.
 
 ## Requirements
 
