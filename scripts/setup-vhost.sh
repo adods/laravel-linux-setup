@@ -27,9 +27,17 @@ echo -e "${YELLOW}Setting up Auto VHost System...${NC}"
 
 # Install vhost creation script
 echo "Installing create-vhost script..."
+
+# Copy to /usr/local/bin for global access
 sudo cp "$BIN_DIR/create-vhost.sh" /usr/local/bin/create-vhost.sh
 sudo chmod +x /usr/local/bin/create-vhost.sh
-echo -e "${GREEN}✓ create-vhost.sh installed to /usr/local/bin/${NC}"
+
+# Also copy to ~/.local/bin for herd-watcher to use
+mkdir -p "$HOME/.local/bin"
+cp "$BIN_DIR/create-vhost.sh" "$HOME/.local/bin/create-vhost.sh"
+chmod +x "$HOME/.local/bin/create-vhost.sh"
+
+echo -e "${GREEN}✓ create-vhost.sh installed to /usr/local/bin/ and ~/.local/bin/${NC}"
 
 # Create herd-watcher script with custom project directory
 echo "Creating herd-watcher script for: $PROJECT_DIR"
