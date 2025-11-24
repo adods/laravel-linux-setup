@@ -85,33 +85,59 @@ else
         else
             echo "Adding repository manually for $ID ($DISTRO_CODENAME)..."
 
-            # Add GPG key
-            sudo mkdir -p /etc/apt/keyrings
-            echo "Downloading Sury PHP repository GPG key..."
-
-            if curl -fsSL https://packages.sury.org/php/apt.gpg -o /tmp/php-sury.gpg 2>&1; then
-                sudo gpg --dearmor -o /etc/apt/keyrings/php-sury.gpg /tmp/php-sury.gpg 2>/dev/null
-                rm -f /tmp/php-sury.gpg
-                echo -e "${GREEN}✓ GPG key added${NC}"
+            # Test connectivity to sury.org first
+            echo "Testing connectivity to packages.sury.org..."
+            SURY_AVAILABLE=false
+            if curl -s --connect-timeout 5 --max-time 10 https://packages.sury.org/ > /dev/null 2>&1; then
+                echo -e "${GREEN}✓ Sury repository is accessible${NC}"
+                SURY_AVAILABLE=true
             else
-                echo -e "${YELLOW}⚠ Failed to download GPG key, trying without signature verification...${NC}"
+                echo -e "${YELLOW}⚠ Cannot reach packages.sury.org${NC}"
+                echo -e "${YELLOW}This could be due to network issues, DNS problems, or firewall restrictions${NC}"
+                SURY_AVAILABLE=false
             fi
 
-            # Add repository
-            if [ -f /etc/apt/keyrings/php-sury.gpg ]; then
-                echo "deb [signed-by=/etc/apt/keyrings/php-sury.gpg] https://packages.sury.org/php/ $DISTRO_CODENAME main" | \
-                    sudo tee /etc/apt/sources.list.d/php-sury.list > /dev/null
-            else
-                # Fallback without signature (less secure but works)
-                echo "deb https://packages.sury.org/php/ $DISTRO_CODENAME main" | \
-                    sudo tee /etc/apt/sources.list.d/php-sury.list > /dev/null
+            if [ "$SURY_AVAILABLE" = true ]; then
+                # Add GPG key
+                sudo mkdir -p /etc/apt/keyrings
+                echo "Downloading Sury PHP repository GPG key..."
+
+                if curl -fsSL https://packages.sury.org/php/apt.gpg -o /tmp/php-sury.gpg 2>&1; then
+                    sudo gpg --dearmor -o /etc/apt/keyrings/php-sury.gpg /tmp/php-sury.gpg 2>/dev/null
+                    rm -f /tmp/php-sury.gpg
+                    echo -e "${GREEN}✓ GPG key added${NC}"
+                else
+                    echo -e "${YELLOW}⚠ Failed to download GPG key${NC}"
+                    SURY_AVAILABLE=false
+                fi
             fi
 
-            echo "Updating package lists..."
-            if sudo apt update 2>&1; then
-                echo -e "${GREEN}✓ PHP repository added manually${NC}"
-            else
-                echo -e "${YELLOW}⚠ Repository added but apt update had warnings${NC}"
+            if [ "$SURY_AVAILABLE" = true ]; then
+                # Add repository
+                if [ -f /etc/apt/keyrings/php-sury.gpg ]; then
+                    echo "deb [signed-by=/etc/apt/keyrings/php-sury.gpg] https://packages.sury.org/php/ $DISTRO_CODENAME main" | \
+                        sudo tee /etc/apt/sources.list.d/php-sury.list > /dev/null
+                else
+                    # Fallback without signature (less secure but works)
+                    echo "deb https://packages.sury.org/php/ $DISTRO_CODENAME main" | \
+                        sudo tee /etc/apt/sources.list.d/php-sury.list > /dev/null
+                fi
+
+                echo "Updating package lists..."
+                if sudo apt update 2>&1 | grep -v "packages.sury.org"; then
+                    echo -e "${GREEN}✓ PHP repository added manually${NC}"
+                else
+                    echo -e "${YELLOW}⚠ Repository update had errors, will try system packages${NC}"
+                    SURY_AVAILABLE=false
+                    # Remove the broken repository
+                    sudo rm -f /etc/apt/sources.list.d/php-sury.list
+                    sudo apt update -qq 2>&1
+                fi
+            fi
+
+            if [ "$SURY_AVAILABLE" = false ]; then
+                echo -e "${YELLOW}⚠ Sury repository unavailable, will use system's default PHP packages${NC}"
+                echo -e "${YELLOW}Note: System PHP version may differ from 8.3/8.4${NC}"
             fi
         fi
     fi
@@ -144,20 +170,57 @@ PHP_EXTENSIONS=(
     "common"
 )
 
-# Install PHP 8.3 (default)
-echo -e "${CYAN}Installing PHP ${DEFAULT_PHP} (default)...${NC}"
+# Detect available PHP version
+echo "Detecting available PHP versions..."
+AVAILABLE_PHP_VERSIONS=$(apt-cache search "^php[0-9]\.[0-9]-fpm$" 2>/dev/null | grep -oP "php\K[0-9]\.[0-9]" | sort -V)
 
-# First, try to install PHP core package to verify repository is working
-echo "Installing PHP ${DEFAULT_PHP} core package..."
-if ! sudo apt install -y php${DEFAULT_PHP} php${DEFAULT_PHP}-cli php${DEFAULT_PHP}-fpm 2>&1; then
-    echo -e "${YELLOW}⚠ Warning: Failed to install PHP ${DEFAULT_PHP}${NC}"
-    echo -e "${YELLOW}This usually means the repository is not accessible or the version is not available.${NC}"
-    echo -e "${YELLOW}Checking available PHP versions...${NC}"
-    apt-cache search "^php[0-9]\.[0-9]-fpm$" | head -5
-    exit 1
+if [ -z "$AVAILABLE_PHP_VERSIONS" ]; then
+    echo -e "${YELLOW}⚠ No specific PHP versions found, trying generic 'php' package${NC}"
+    INSTALL_PHP_VERSION=""  # Will use 'php' instead of 'php8.3'
+else
+    echo "Available PHP versions:"
+    echo "$AVAILABLE_PHP_VERSIONS" | sed 's/^/  - PHP /'
+
+    # Try to use requested version first, then fallback to available versions
+    if echo "$AVAILABLE_PHP_VERSIONS" | grep -q "^${DEFAULT_PHP}$"; then
+        INSTALL_PHP_VERSION="$DEFAULT_PHP"
+        echo -e "${GREEN}✓ Using PHP ${DEFAULT_PHP} (requested version)${NC}"
+    else
+        # Use the latest available version
+        INSTALL_PHP_VERSION=$(echo "$AVAILABLE_PHP_VERSIONS" | tail -1)
+        echo -e "${YELLOW}⚠ PHP ${DEFAULT_PHP} not available, using PHP ${INSTALL_PHP_VERSION} instead${NC}"
+    fi
 fi
 
-echo -e "${GREEN}✓ PHP ${DEFAULT_PHP} core installed${NC}"
+# Install PHP core package
+if [ -n "$INSTALL_PHP_VERSION" ]; then
+    echo -e "${CYAN}Installing PHP ${INSTALL_PHP_VERSION}...${NC}"
+    echo "Installing PHP ${INSTALL_PHP_VERSION} core packages..."
+
+    if sudo apt install -y php${INSTALL_PHP_VERSION} php${INSTALL_PHP_VERSION}-cli php${INSTALL_PHP_VERSION}-fpm 2>&1; then
+        echo -e "${GREEN}✓ PHP ${INSTALL_PHP_VERSION} core installed${NC}"
+    else
+        echo -e "${YELLOW}⚠ Failed to install PHP ${INSTALL_PHP_VERSION}, trying generic php package...${NC}"
+        INSTALL_PHP_VERSION=""
+    fi
+fi
+
+# Fallback to generic PHP package
+if [ -z "$INSTALL_PHP_VERSION" ]; then
+    echo -e "${CYAN}Installing system's default PHP...${NC}"
+    if sudo apt install -y php php-cli php-fpm 2>&1; then
+        INSTALLED_PHP_VERSION=$(php -v 2>/dev/null | head -1 | grep -oP "PHP \K[0-9]\.[0-9]" || echo "unknown")
+        echo -e "${GREEN}✓ PHP ${INSTALLED_PHP_VERSION} installed (system default)${NC}"
+        INSTALL_PHP_VERSION="$INSTALLED_PHP_VERSION"
+    else
+        echo -e "${RED}✗ Failed to install PHP${NC}"
+        echo -e "${RED}Please check your network connection and repository configuration${NC}"
+        exit 1
+    fi
+fi
+
+# Update variables to use the actually installed version
+DEFAULT_PHP="$INSTALL_PHP_VERSION"
 
 # Install extensions one by one for better error handling
 echo "Installing PHP ${DEFAULT_PHP} extensions..."
@@ -169,12 +232,26 @@ for ext in "${PHP_EXTENSIONS[@]}"; do
         continue
     fi
 
-    package="php${DEFAULT_PHP}-${ext}"
+    # Try versioned package first, then generic
+    if [ -n "$DEFAULT_PHP" ] && [ "$DEFAULT_PHP" != "unknown" ]; then
+        package="php${DEFAULT_PHP}-${ext}"
+    else
+        package="php-${ext}"
+    fi
+
     echo -n "  Installing $package... "
 
     if sudo apt install -y "$package" >> /dev/null 2>&1; then
         echo -e "${GREEN}✓${NC}"
     else
+        # If versioned package failed, try generic package
+        if [ "$package" != "php-${ext}" ]; then
+            echo -n "(trying php-${ext}... "
+            if sudo apt install -y "php-${ext}" >> /dev/null 2>&1; then
+                echo -e "${GREEN}✓${NC})"
+                continue
+            fi
+        fi
         echo -e "${YELLOW}⚠ (skipped)${NC}"
         FAILED_EXTENSIONS+=("$ext")
     fi
@@ -187,20 +264,25 @@ else
     echo -e "${GREEN}✓ All PHP ${DEFAULT_PHP} extensions installed${NC}"
 fi
 
-# Install PHP 8.4 (latest)
-echo -e "${CYAN}Installing PHP ${LATEST_PHP}...${NC}"
+# Install PHP 8.4 (latest) - only if using Sury repository
+if check_php_repo && apt-cache search "^php${LATEST_PHP}-fpm$" 2>/dev/null | grep -q .; then
+    echo -e "${CYAN}Installing PHP ${LATEST_PHP}...${NC}"
 
-PHP_PACKAGES_LATEST=()
-for ext in "${PHP_EXTENSIONS[@]}"; do
-    PHP_PACKAGES_LATEST+=("php${LATEST_PHP}-${ext}")
-done
+    PHP_PACKAGES_LATEST=()
+    for ext in "${PHP_EXTENSIONS[@]}"; do
+        PHP_PACKAGES_LATEST+=("php${LATEST_PHP}-${ext}")
+    done
 
-sudo apt install -y "${PHP_PACKAGES_LATEST[@]}" || {
-    echo -e "${YELLOW}⚠ Warning: PHP ${LATEST_PHP} installation failed. Continuing with ${DEFAULT_PHP} only.${NC}"
-}
+    sudo apt install -y "${PHP_PACKAGES_LATEST[@]}" 2>&1 | grep -v "^Selecting" || {
+        echo -e "${YELLOW}⚠ Warning: PHP ${LATEST_PHP} installation failed. Continuing with ${DEFAULT_PHP} only.${NC}"
+    }
 
-if command -v php${LATEST_PHP} &> /dev/null; then
-    echo -e "${GREEN}✓ PHP ${LATEST_PHP} installed with all extensions${NC}"
+    if command -v php${LATEST_PHP} &> /dev/null; then
+        echo -e "${GREEN}✓ PHP ${LATEST_PHP} installed with all extensions${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠ Skipping PHP ${LATEST_PHP} installation (only available via Sury repository)${NC}"
+    echo -e "${YELLOW}Will use PHP ${DEFAULT_PHP} only${NC}"
 fi
 
 # Set PHP 8.3 as default
