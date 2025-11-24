@@ -20,23 +20,45 @@ LATEST_PHP="8.4"
 
 echo -e "${YELLOW}Installing PHP...${NC}"
 
-# Add ondrej/php repository
-echo "Adding PHP repository..."
+# First, clean up any existing Sury repositories from previous failed attempts
+echo "Checking for existing third-party PHP repositories..."
+
+# Remove any Sury/Ondrej repository files
+SURY_REPOS=$(find /etc/apt/sources.list.d/ -type f \( -name "*sury*" -o -name "*ondrej*" -o -name "*php*.list" \) 2>/dev/null)
+
+if [ -n "$SURY_REPOS" ]; then
+    echo -e "${YELLOW}Found existing Sury/Ondrej repository configurations:${NC}"
+    echo "$SURY_REPOS" | while read repo; do
+        echo "  - $(basename $repo)"
+    done
+    echo -e "${YELLOW}Removing these to avoid HTTP 418 and signature errors...${NC}"
+
+    # Remove repository files
+    sudo find /etc/apt/sources.list.d/ -type f \( -name "*sury*" -o -name "*ondrej*" \) -delete 2>/dev/null
+
+    # Remove GPG keys
+    sudo rm -f /etc/apt/keyrings/php-sury.gpg 2>/dev/null
+    sudo rm -f /etc/apt/trusted.gpg.d/*sury* 2>/dev/null
+    sudo rm -f /etc/apt/trusted.gpg.d/*ondrej* 2>/dev/null
+
+    echo -e "${GREEN}✓ Cleaned up third-party PHP repositories${NC}"
+
+    # Update package lists to clear the errors
+    echo "Refreshing package lists..."
+    sudo apt update -qq 2>&1
+    echo -e "${GREEN}✓ Package lists refreshed${NC}"
+else
+    echo -e "${GREEN}✓ No problematic third-party repositories found${NC}"
+fi
 
 # Function to check if repository is configured
 check_php_repo() {
-    # Check if any PHP repository source exists
-    if ls /etc/apt/sources.list.d/*php*.list 2>/dev/null | grep -q . || \
-       grep -r "packages.sury.org/php" /etc/apt/sources.list.d/ 2>/dev/null | grep -q .; then
-        return 0
-    fi
-    return 1
+    # Only check for properly configured repos (not Sury)
+    return 1  # Always return false - we're using system packages only
 }
 
-# Check if repository already exists
-if check_php_repo; then
-    echo -e "${GREEN}✓ PHP repository already exists${NC}"
-else
+# We're skipping third-party repositories entirely
+if false; then
     # Detect distribution info
     if [ -f /etc/os-release ]; then
         . /etc/os-release
