@@ -201,20 +201,50 @@ update_system() {
 install_dependencies() {
     print_header "Installing Dependencies"
 
-    log "Installing required packages..."
-    sudo apt install -y \
-        software-properties-common \
-        apt-transport-https \
-        ca-certificates \
-        curl \
-        wget \
-        git \
-        gnupg \
-        lsb-release \
-        inotify-tools \
-        >> "$LOG_FILE" 2>&1
+    # Core dependencies that should be available on all Debian-based systems
+    local core_deps=(
+        "apt-transport-https"
+        "ca-certificates"
+        "curl"
+        "wget"
+        "git"
+        "gnupg"
+        "lsb-release"
+        "inotify-tools"
+    )
 
-    log_success "Dependencies installed"
+    # Optional dependencies (may not be available on all distros)
+    local optional_deps=(
+        "software-properties-common"
+    )
+
+    log "Installing core dependencies..."
+    for package in "${core_deps[@]}"; do
+        if ! dpkg -l | grep -q "^ii  $package "; then
+            log "Installing $package..."
+            if ! sudo apt install -y "$package" >> "$LOG_FILE" 2>&1; then
+                log_error "Failed to install $package"
+                log_error "Check $LOG_FILE for details"
+                exit 1
+            fi
+        else
+            log "  $package already installed"
+        fi
+    done
+
+    log_success "Core dependencies installed"
+
+    # Try to install optional dependencies
+    for package in "${optional_deps[@]}"; do
+        if ! dpkg -l | grep -q "^ii  $package "; then
+            log "Attempting to install optional package: $package..."
+            if sudo apt install -y "$package" >> "$LOG_FILE" 2>&1; then
+                log "  $package installed"
+            else
+                log_warning "$package not available (this is OK, will work around it)"
+            fi
+        fi
+    done
 }
 
 install_apache() {

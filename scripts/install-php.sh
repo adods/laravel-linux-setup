@@ -22,12 +22,41 @@ echo -e "${YELLOW}Installing PHP...${NC}"
 
 # Add ondrej/php repository
 echo "Adding PHP repository..."
-if [ ! -f /etc/apt/sources.list.d/ondrej-ubuntu-php-*.list ]; then
-    sudo add-apt-repository -y ppa:ondrej/php
-    sudo apt update -qq
-    echo -e "${GREEN}✓ PHP repository added${NC}"
-else
+
+# Check if repository already exists
+if ls /etc/apt/sources.list.d/ondrej-*php*.list 2>/dev/null | grep -q .; then
     echo -e "${GREEN}✓ PHP repository already exists${NC}"
+else
+    # Try add-apt-repository first (Ubuntu/Debian with software-properties-common)
+    if command -v add-apt-repository &> /dev/null; then
+        echo "Using add-apt-repository..."
+        sudo add-apt-repository -y ppa:ondrej/php
+        sudo apt update -qq
+        echo -e "${GREEN}✓ PHP repository added${NC}"
+    else
+        # Fallback: Add repository manually (for systems without software-properties-common)
+        echo "add-apt-repository not available, adding repository manually..."
+
+        # Detect distribution
+        . /etc/os-release
+        DISTRO_CODENAME=$(lsb_release -cs 2>/dev/null || echo "")
+
+        if [ -z "$DISTRO_CODENAME" ]; then
+            echo -e "${YELLOW}⚠ Cannot detect distribution codename${NC}"
+            echo -e "${YELLOW}Attempting to use system's default PHP packages...${NC}"
+        else
+            # Add GPG key
+            sudo mkdir -p /etc/apt/keyrings
+            curl -fsSL https://packages.sury.org/php/apt.gpg | sudo gpg --dearmor -o /etc/apt/keyrings/php-sury.gpg 2>/dev/null || true
+
+            # Add repository
+            echo "deb [signed-by=/etc/apt/keyrings/php-sury.gpg] https://packages.sury.org/php/ $DISTRO_CODENAME main" | \
+                sudo tee /etc/apt/sources.list.d/php-sury.list > /dev/null
+
+            sudo apt update -qq
+            echo -e "${GREEN}✓ PHP repository added manually${NC}"
+        fi
+    fi
 fi
 
 # Laravel required PHP extensions

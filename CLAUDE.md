@@ -57,6 +57,12 @@ The core feature is automatic virtual host creation when new projects are added:
 - Essential commands: `bash`, `sudo`, `systemctl`, `chmod`, `chown`
 - This approach supports any Debian-based distribution with systemd
 
+**Dependency Handling**:
+- Core dependencies are required and will fail installation if missing
+- Optional dependencies (like `software-properties-common`) are installed if available
+- PHP repository: Falls back to manual configuration if `add-apt-repository` unavailable
+- Uses Sury PHP repository directly when PPA tools not present (Kali Linux, etc.)
+
 ## Development Commands
 
 ### Testing Installation
