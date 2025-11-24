@@ -6,7 +6,20 @@
 WATCH_DIR="/media/adods/Data/Herd"
 CREATE_VHOST_SCRIPT="$HOME/.local/bin/create-vhost.sh"
 LOG_FILE="$HOME/.local/log/herd-watcher.log"
-PHP_VERSION="8.3"  # Default PHP version
+
+# Auto-detect available PHP version
+if [ -S /run/php/php8.4-fpm.sock ]; then
+    PHP_VERSION="8.4"
+elif [ -S /run/php/php8.3-fpm.sock ]; then
+    PHP_VERSION="8.3"
+elif [ -S /run/php/php8.2-fpm.sock ]; then
+    PHP_VERSION="8.2"
+elif [ -S /run/php/php8.1-fpm.sock ]; then
+    PHP_VERSION="8.1"
+else
+    # Fallback to detecting from php command
+    PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null || echo "8.3")
+fi
 
 # Colors for output
 GREEN='\033[0;32m'

@@ -6,7 +6,25 @@
 PROJECT_DIR="$1"
 PROJECT_NAME=$(basename "$PROJECT_DIR")
 DOMAIN="${PROJECT_NAME}.test"
-PHP_VERSION="${2:-8.3}"  # Default to PHP 8.3
+
+# Auto-detect available PHP version if not specified
+if [ -z "$2" ]; then
+    # Try to find installed PHP-FPM version
+    if [ -S /run/php/php8.4-fpm.sock ]; then
+        PHP_VERSION="8.4"
+    elif [ -S /run/php/php8.3-fpm.sock ]; then
+        PHP_VERSION="8.3"
+    elif [ -S /run/php/php8.2-fpm.sock ]; then
+        PHP_VERSION="8.2"
+    elif [ -S /run/php/php8.1-fpm.sock ]; then
+        PHP_VERSION="8.1"
+    else
+        # Fallback to system default PHP version
+        PHP_VERSION=$(php -r "echo PHP_MAJOR_VERSION.'.'.PHP_MINOR_VERSION;" 2>/dev/null || echo "8.3")
+    fi
+else
+    PHP_VERSION="$2"
+fi
 
 # Colors for output
 GREEN='\033[0;32m'
