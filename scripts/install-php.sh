@@ -23,30 +23,69 @@ echo -e "${YELLOW}Installing PHP...${NC}"
 # First, clean up any existing Sury repositories from previous failed attempts
 echo "Checking for existing third-party PHP repositories..."
 
-# Remove any Sury/Ondrej repository files
-SURY_REPOS=$(find /etc/apt/sources.list.d/ -type f \( -name "*sury*" -o -name "*ondrej*" -o -name "*php*.list" \) 2>/dev/null)
+# Check all possible locations for Sury repositories
+FOUND_SURY=false
 
-if [ -n "$SURY_REPOS" ]; then
-    echo -e "${YELLOW}Found existing Sury/Ondrej repository configurations:${NC}"
-    echo "$SURY_REPOS" | while read repo; do
-        echo "  - $(basename $repo)"
-    done
-    echo -e "${YELLOW}Removing these to avoid HTTP 418 and signature errors...${NC}"
+# Check sources.list.d directory
+if ls /etc/apt/sources.list.d/*sury* 2>/dev/null || \
+   ls /etc/apt/sources.list.d/*ondrej* 2>/dev/null || \
+   ls /etc/apt/sources.list.d/*php*.list 2>/dev/null || \
+   grep -r "packages.sury.org" /etc/apt/sources.list.d/ 2>/dev/null | grep -q .; then
+    FOUND_SURY=true
+fi
 
-    # Remove repository files
-    sudo find /etc/apt/sources.list.d/ -type f \( -name "*sury*" -o -name "*ondrej*" \) -delete 2>/dev/null
+# Check main sources.list file
+if grep -q "packages.sury.org" /etc/apt/sources.list 2>/dev/null || \
+   grep -q "ppa.launchpad.net.*ondrej.*php" /etc/apt/sources.list 2>/dev/null; then
+    FOUND_SURY=true
+fi
 
-    # Remove GPG keys
+if [ "$FOUND_SURY" = true ]; then
+    echo -e "${YELLOW}Found existing Sury/Ondrej repository configurations${NC}"
+    echo -e "${YELLOW}Removing ALL Sury repositories to avoid HTTP 418 and signature errors...${NC}"
+
+    # Remove from sources.list.d
+    echo "Cleaning /etc/apt/sources.list.d/..."
+    sudo find /etc/apt/sources.list.d/ -type f \( -name "*sury*" -o -name "*ondrej*" -o -name "*php*.list" \) -exec rm -v {} \; 2>/dev/null
+
+    # Remove Sury entries from main sources.list
+    echo "Cleaning /etc/apt/sources.list..."
+    if grep -q "sury.org\|ondrej.*php" /etc/apt/sources.list 2>/dev/null; then
+        sudo cp /etc/apt/sources.list /etc/apt/sources.list.backup
+        sudo sed -i '/sury\.org/d' /etc/apt/sources.list
+        sudo sed -i '/ondrej.*php/d' /etc/apt/sources.list
+        sudo sed -i '/ppa\.launchpad\.net.*ondrej.*php/d' /etc/apt/sources.list
+        echo -e "${GREEN}✓ Removed Sury entries from sources.list${NC}"
+    fi
+
+    # Remove GPG keys from all locations
+    echo "Removing Sury GPG keys..."
     sudo rm -f /etc/apt/keyrings/php-sury.gpg 2>/dev/null
+    sudo rm -f /etc/apt/keyrings/*sury* 2>/dev/null
     sudo rm -f /etc/apt/trusted.gpg.d/*sury* 2>/dev/null
     sudo rm -f /etc/apt/trusted.gpg.d/*ondrej* 2>/dev/null
+    sudo rm -f /etc/apt/trusted.gpg.d/*php* 2>/dev/null
+
+    # Remove from legacy keyring
+    if command -v apt-key &> /dev/null; then
+        sudo apt-key del 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C 2>/dev/null || true
+    fi
 
     echo -e "${GREEN}✓ Cleaned up third-party PHP repositories${NC}"
 
     # Update package lists to clear the errors
-    echo "Refreshing package lists..."
-    sudo apt update -qq 2>&1
-    echo -e "${GREEN}✓ Package lists refreshed${NC}"
+    echo "Refreshing package lists (this may take a moment)..."
+    if sudo apt update 2>&1 | tee /tmp/apt-update.log; then
+        echo -e "${GREEN}✓ Package lists refreshed successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠ apt update completed with warnings (checking...)${NC}"
+        if grep -qi "sury\|418" /tmp/apt-update.log; then
+            echo -e "${RED}✗ Still seeing Sury errors. Please run manually:${NC}"
+            echo -e "${RED}  sudo grep -r 'sury.org' /etc/apt/${NC}"
+            echo -e "${RED}  sudo grep -r 'ondrej' /etc/apt/${NC}"
+        fi
+    fi
+    rm -f /tmp/apt-update.log
 else
     echo -e "${GREEN}✓ No problematic third-party repositories found${NC}"
 fi
