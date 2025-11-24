@@ -27,8 +27,10 @@ cd laravel-linux-setup
 
 ## Requirements
 
-- Ubuntu 20.04+ or Debian 11+
+- Debian-based Linux distribution (Ubuntu, Debian, Linux Mint, Pop!_OS, etc.)
+- APT package manager
 - Non-root user with sudo privileges
+- Systemd init system
 - Active internet connection
 
 ## What Gets Installed

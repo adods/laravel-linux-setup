@@ -79,21 +79,48 @@ check_sudo() {
     fi
 }
 
-check_os() {
-    if [[ ! -f /etc/os-release ]]; then
-        log_error "Cannot detect OS. /etc/os-release not found."
+check_system() {
+    print_header "Checking System Requirements"
+
+    # Detect OS info for logging
+    if [[ -f /etc/os-release ]]; then
+        . /etc/os-release
+        log "OS detected: $PRETTY_NAME"
+    else
+        log_warning "Cannot detect OS details, but will attempt installation anyway"
+    fi
+
+    # Check for required package manager commands
+    local has_apt=false
+    local missing_commands=()
+
+    if command -v apt &> /dev/null && command -v apt-get &> /dev/null; then
+        has_apt=true
+        log_success "Package manager: apt (Debian/Ubuntu-based)"
+    fi
+
+    if ! $has_apt; then
+        log_error "This script requires apt package manager (Debian/Ubuntu-based systems)"
+        log_error "Your system does not appear to have apt available"
         exit 1
     fi
 
-    . /etc/os-release
+    # Check for essential commands that should exist on the base system
+    local required_commands=("bash" "sudo" "systemctl" "chmod" "chown")
 
-    if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
-        log_error "This script only supports Ubuntu and Debian."
-        log_error "Detected OS: $ID"
+    for cmd in "${required_commands[@]}"; do
+        if ! command -v "$cmd" &> /dev/null; then
+            missing_commands+=("$cmd")
+        fi
+    done
+
+    if [ ${#missing_commands[@]} -gt 0 ]; then
+        log_error "Missing required system commands: ${missing_commands[*]}"
+        log_error "Please ensure you're running on a standard Linux system"
         exit 1
     fi
 
-    log_success "OS detected: $PRETTY_NAME"
+    log_success "All required system commands are available"
 }
 
 #######################################################
@@ -322,7 +349,7 @@ main() {
 
     # Pre-checks
     check_root
-    check_os
+    check_system
     check_sudo
 
     # Get user configuration
