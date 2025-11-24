@@ -58,17 +58,28 @@ if [ "$FOUND_SURY" = true ]; then
         echo -e "${GREEN}✓ Removed Sury entries from sources.list${NC}"
     fi
 
-    # Remove GPG keys from all locations
+    # Remove GPG keys from all locations - use -rf for force removal
     echo "Removing Sury GPG keys..."
+    sudo rm -rf /etc/apt/keyrings/*sury* 2>/dev/null
+    sudo rm -rf /etc/apt/keyrings/*php* 2>/dev/null
+    sudo rm -rf /etc/apt/trusted.gpg.d/*sury* 2>/dev/null
+    sudo rm -rf /etc/apt/trusted.gpg.d/*ondrej* 2>/dev/null
+    sudo rm -rf /etc/apt/trusted.gpg.d/*php* 2>/dev/null
+
+    # Also remove specific files
     sudo rm -f /etc/apt/keyrings/php-sury.gpg 2>/dev/null
-    sudo rm -f /etc/apt/keyrings/*sury* 2>/dev/null
-    sudo rm -f /etc/apt/trusted.gpg.d/*sury* 2>/dev/null
-    sudo rm -f /etc/apt/trusted.gpg.d/*ondrej* 2>/dev/null
-    sudo rm -f /etc/apt/trusted.gpg.d/*php* 2>/dev/null
 
     # Remove from legacy keyring
     if command -v apt-key &> /dev/null; then
         sudo apt-key del 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C 2>/dev/null || true
+    fi
+
+    # Double-check and force remove any remaining
+    REMAINING_KEYS=$(sudo find /etc/apt/keyrings /etc/apt/trusted.gpg.d -name '*sury*' -o -name '*ondrej*' -o -name '*php*' 2>/dev/null)
+    if [ -n "$REMAINING_KEYS" ]; then
+        echo "$REMAINING_KEYS" | while read key; do
+            sudo rm -rf "$key" 2>/dev/null
+        done
     fi
 
     echo -e "${GREEN}✓ Cleaned up third-party PHP repositories${NC}"

@@ -80,16 +80,31 @@ fi
 echo ""
 echo -e "${CYAN}[4/5] Removing GPG keys...${NC}"
 
-# Remove GPG keys
+# Remove GPG keys - use -rf to force removal
+sudo rm -rf /etc/apt/keyrings/*sury* 2>/dev/null
+sudo rm -rf /etc/apt/keyrings/*php* 2>/dev/null
+sudo rm -rf /etc/apt/trusted.gpg.d/*sury* 2>/dev/null
+sudo rm -rf /etc/apt/trusted.gpg.d/*ondrej* 2>/dev/null
+sudo rm -rf /etc/apt/trusted.gpg.d/*php* 2>/dev/null
+
+# Also check for specific files
 sudo rm -f /etc/apt/keyrings/php-sury.gpg 2>/dev/null
-sudo rm -f /etc/apt/keyrings/*sury* 2>/dev/null
-sudo rm -f /etc/apt/trusted.gpg.d/*sury* 2>/dev/null
-sudo rm -f /etc/apt/trusted.gpg.d/*ondrej* 2>/dev/null
-sudo rm -f /etc/apt/trusted.gpg.d/*php* 2>/dev/null
 
 # Remove from legacy keyring
 if command -v apt-key &> /dev/null; then
     sudo apt-key del 14AA40EC0831756756D7F66C4F4EA0AAE5267A6C 2>/dev/null || true
+fi
+
+# Verify removal
+echo "Checking for remaining GPG keys..."
+REMAINING=$(sudo find /etc/apt/keyrings /etc/apt/trusted.gpg.d -name '*sury*' -o -name '*ondrej*' -o -name '*php*' 2>/dev/null)
+if [ -n "$REMAINING" ]; then
+    echo -e "${YELLOW}⚠ Some GPG files still present:${NC}"
+    echo "$REMAINING"
+    echo -e "${YELLOW}Forcing removal...${NC}"
+    echo "$REMAINING" | while read file; do
+        sudo rm -rf "$file" 2>/dev/null && echo "  Removed: $file"
+    done
 fi
 
 echo -e "${GREEN}✓ GPG keys removed${NC}"
