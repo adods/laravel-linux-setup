@@ -65,114 +65,25 @@ else
     echo "Distribution: $ID"
     echo "Codename: $DISTRO_CODENAME"
 
-    # Try add-apt-repository first (Ubuntu/Debian with software-properties-common)
-    if command -v add-apt-repository &> /dev/null && [ "$ID" != "kali" ]; then
-        echo "Using add-apt-repository..."
-        if sudo add-apt-repository -y ppa:ondrej/php 2>&1; then
-            sudo apt update -qq
-            echo -e "${GREEN}✓ PHP repository added via PPA${NC}"
-        else
-            echo -e "${YELLOW}⚠ PPA method failed, trying manual method...${NC}"
-            DISTRO_CODENAME=""  # Force manual method
-        fi
-    fi
+    # Note: ppa:ondrej/php and packages.sury.org are the SAME repository
+    # Both are maintained by Ondřej Surý and both can return HTTP 418 errors
 
-    # Manual method for Kali or if add-apt-repository failed/unavailable
-    if ! check_php_repo; then
-        if [ -z "$DISTRO_CODENAME" ]; then
-            echo -e "${YELLOW}⚠ Cannot detect distribution codename${NC}"
-            echo -e "${YELLOW}Attempting to use system's default PHP packages...${NC}"
-        else
-            echo "Adding repository manually for $ID ($DISTRO_CODENAME)..."
+    # Skip third-party repositories - just use system packages
+    # Reasons:
+    # 1. Sury/Ondrej repository often blocks IPs (HTTP 418 "I'm a teapot")
+    # 2. Signature verification issues ("not signed" errors)
+    # 3. Network/firewall restrictions in security-focused environments
+    # 4. System packages are more stable and tested for each distro
 
-            # Test connectivity to sury.org first
-            echo "Testing connectivity to packages.sury.org..."
-            SURY_AVAILABLE=false
+    echo -e "${CYAN}Using system's native PHP packages for better reliability${NC}"
+    echo -e "${CYAN}System packages are tested and maintained by your distribution${NC}"
 
-            # Try with user-agent header to avoid bot detection (418 I'm a teapot error)
-            TEST_RESPONSE=$(curl -s -A "Mozilla/5.0 (compatible; apt/2.0)" --connect-timeout 5 --max-time 10 -w "%{http_code}" https://packages.sury.org/ -o /dev/null 2>&1)
-
-            if [ "$TEST_RESPONSE" = "200" ] || [ "$TEST_RESPONSE" = "301" ] || [ "$TEST_RESPONSE" = "302" ]; then
-                echo -e "${GREEN}✓ Sury repository is accessible${NC}"
-                SURY_AVAILABLE=true
-            elif [ "$TEST_RESPONSE" = "418" ]; then
-                echo -e "${YELLOW}⚠ Sury repository blocking requests (HTTP 418 - I'm a teapot)${NC}"
-                echo -e "${YELLOW}This usually means IP-based restrictions or rate limiting${NC}"
-                echo -e "${YELLOW}Will use system's default PHP packages instead${NC}"
-                SURY_AVAILABLE=false
-            else
-                echo -e "${YELLOW}⚠ Cannot reach packages.sury.org (HTTP $TEST_RESPONSE)${NC}"
-                echo -e "${YELLOW}This could be due to network issues, DNS problems, or firewall restrictions${NC}"
-                SURY_AVAILABLE=false
-            fi
-
-            if [ "$SURY_AVAILABLE" = true ]; then
-                # Add GPG key with user-agent header
-                sudo mkdir -p /etc/apt/keyrings
-                echo "Downloading Sury PHP repository GPG key..."
-
-                # Use wget if available (apt uses wget internally), otherwise curl with user-agent
-                if command -v wget &> /dev/null; then
-                    if wget -q --timeout=10 -O /tmp/php-sury.gpg https://packages.sury.org/php/apt.gpg 2>&1; then
-                        sudo gpg --dearmor -o /etc/apt/keyrings/php-sury.gpg /tmp/php-sury.gpg 2>/dev/null
-                        rm -f /tmp/php-sury.gpg
-                        echo -e "${GREEN}✓ GPG key added${NC}"
-                    else
-                        echo -e "${YELLOW}⚠ Failed to download GPG key via wget${NC}"
-                        SURY_AVAILABLE=false
-                    fi
-                else
-                    if curl -fsSL -A "Mozilla/5.0 (compatible; apt/2.0)" --max-time 10 https://packages.sury.org/php/apt.gpg -o /tmp/php-sury.gpg 2>&1; then
-                        sudo gpg --dearmor -o /etc/apt/keyrings/php-sury.gpg /tmp/php-sury.gpg 2>/dev/null
-                        rm -f /tmp/php-sury.gpg
-                        echo -e "${GREEN}✓ GPG key added${NC}"
-                    else
-                        echo -e "${YELLOW}⚠ Failed to download GPG key via curl${NC}"
-                        SURY_AVAILABLE=false
-                    fi
-                fi
-            fi
-
-            if [ "$SURY_AVAILABLE" = true ]; then
-                # Add repository
-                if [ -f /etc/apt/keyrings/php-sury.gpg ]; then
-                    echo "deb [signed-by=/etc/apt/keyrings/php-sury.gpg] https://packages.sury.org/php/ $DISTRO_CODENAME main" | \
-                        sudo tee /etc/apt/sources.list.d/php-sury.list > /dev/null
-                else
-                    # Fallback without signature (less secure but works)
-                    echo "deb https://packages.sury.org/php/ $DISTRO_CODENAME main" | \
-                        sudo tee /etc/apt/sources.list.d/php-sury.list > /dev/null
-                fi
-
-                echo "Updating package lists..."
-                UPDATE_OUTPUT=$(sudo apt update 2>&1)
-                UPDATE_EXIT=$?
-
-                # Check for specific Sury errors (418, fetch failures, etc.)
-                if echo "$UPDATE_OUTPUT" | grep -qi "sury" && echo "$UPDATE_OUTPUT" | grep -qiE "(418|failed|error|unable to fetch)"; then
-                    echo -e "${YELLOW}⚠ Repository update failed for Sury (likely HTTP 418 or fetch error)${NC}"
-                    echo -e "${YELLOW}Removing Sury repository and using system packages${NC}"
-                    SURY_AVAILABLE=false
-                    # Remove the broken repository
-                    sudo rm -f /etc/apt/sources.list.d/php-sury.list
-                    sudo rm -f /etc/apt/keyrings/php-sury.gpg
-                    sudo apt update -qq 2>&1
-                elif [ $UPDATE_EXIT -eq 0 ]; then
-                    echo -e "${GREEN}✓ PHP repository added manually${NC}"
-                else
-                    echo -e "${YELLOW}⚠ Repository update had warnings, will try system packages${NC}"
-                    SURY_AVAILABLE=false
-                    sudo rm -f /etc/apt/sources.list.d/php-sury.list
-                    sudo apt update -qq 2>&1
-                fi
-            fi
-
-            if [ "$SURY_AVAILABLE" = false ]; then
-                echo -e "${YELLOW}⚠ Sury repository unavailable, will use system's default PHP packages${NC}"
-                echo -e "${YELLOW}Note: System PHP version may differ from 8.3/8.4${NC}"
-            fi
-        fi
-    fi
+    # Optional: Only try PPA on standard Ubuntu if explicitly requested
+    # Uncomment the following lines if you want to try PPA on Ubuntu:
+    # if [ "$ID" = "ubuntu" ] && [ "$ID_LIKE" != "*debian*kali*" ] && command -v add-apt-repository &> /dev/null; then
+    #     echo "Attempting to add Ondrej PHP PPA (may fail with HTTP 418)..."
+    #     sudo add-apt-repository -y ppa:ondrej/php 2>&1 && sudo apt update -qq 2>&1
+    # fi
 fi
 
 # Verify repository is accessible
