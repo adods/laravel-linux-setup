@@ -6,12 +6,13 @@ Automated installation and configuration script for Laravel development environm
 
 - **Apache** - Latest stable version with required modules
 - **PHP 8.3** (default) + **PHP 8.4** - With all Laravel required extensions
+- **Additional PHP Versions** - Easy script to install any PHP version (8.1, 8.2, etc.)
 - **MariaDB** - Latest stable version with passwordless root access
 - **Node.js LTS** - Installed via NVM for frontend asset compilation
 - **Auto VHost Generation** - Automatically creates virtual hosts when you add projects
 - **File Monitoring** - Systemd service watches your projects directory
 - **Composer** - Latest version with Laravel installer included
-- **Per-Project PHP Versions** - Each project can use different PHP versions (8.3 or 8.4)
+- **Per-Project PHP Versions** - Each project can use different PHP versions
 
 ## Quick Install
 
@@ -154,14 +155,44 @@ create-vhost.sh ~/Projects/projectB 8.4
 
 The auto-watcher uses PHP 8.3 by default.
 
+### Installing Additional PHP Versions
+
+You can install any specific PHP version with all Laravel extensions using the `install-php-version.sh` script:
+
+```bash
+# Install PHP 8.2 using system packages
+./bin/install-php-version.sh 8.2
+
+# Install PHP 8.1 using Sury repository (more versions available)
+./bin/install-php-version.sh 8.1 --with-sury
+
+# View help and all options
+./bin/install-php-version.sh --help
+```
+
+**What it installs:**
+- PHP core (cli, fpm, common)
+- All Laravel required extensions: mysql, pgsql, sqlite3, mbstring, xml, bcmath, curl, zip, gd, intl, soap, redis, memcached, imagick
+- PHP-FPM service (enabled and started)
+
+**Options:**
+- `--with-sury` - Use Sury repository for latest PHP versions (8.1, 8.2, 8.3, 8.4, etc.)
+- Without flag - Uses system packages (more stable, limited versions)
+
+**After installation:**
+- Use with `create-vhost.sh`: `create-vhost.sh /path/to/project 8.2`
+- Set as default CLI: `sudo update-alternatives --set php /usr/bin/php8.2`
+- Check installed modules: `php8.2 -m`
+
 ## Directory Structure
 
 ```
 laravel-linux-setup/
 ├── install.sh              # Main installation script
-├── bin/                    # VHost generation scripts
+├── bin/                    # User-facing scripts
 │   ├── create-vhost.sh
-│   └── herd-watcher.sh
+│   ├── herd-watcher.sh
+│   └── install-php-version.sh  # Install specific PHP versions
 ├── scripts/                # Installation modules
 │   ├── install-apache.sh
 │   ├── install-php.sh
