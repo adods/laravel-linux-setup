@@ -142,7 +142,7 @@ fi
 echo -e "${GREEN}✓ Created vhost file: $VHOST_FILE${NC}"
 
 # Add to /etc/hosts if not already present
-if ! grep -q "127.0.0.1.*${DOMAIN}" /etc/hosts; then
+if ! grep -qw "${DOMAIN}" /etc/hosts; then
     echo "127.0.0.1    ${DOMAIN}" | sudo tee -a /etc/hosts > /dev/null
     echo -e "${GREEN}✓ Added ${DOMAIN} to /etc/hosts${NC}"
 else
