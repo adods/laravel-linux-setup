@@ -14,6 +14,11 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
+# Ensure XDG_RUNTIME_DIR is set so systemctl --user can reach the user systemd instance
+if [ -z "$XDG_RUNTIME_DIR" ]; then
+    export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+
 PROJECT_DIR="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
 BIN_DIR="$SCRIPT_DIR/bin"
@@ -31,13 +36,17 @@ echo "Installing create-vhost script..."
 # Copy to /usr/local/bin for global access
 sudo cp "$BIN_DIR/create-vhost.sh" /usr/local/bin/create-vhost.sh
 sudo chmod +x /usr/local/bin/create-vhost.sh
+sudo cp "$BIN_DIR/init-vhosts.sh" /usr/local/bin/init-vhosts.sh
+sudo chmod +x /usr/local/bin/init-vhosts.sh
 
 # Also copy to ~/.local/bin for herd-watcher to use
 mkdir -p "$HOME/.local/bin"
 cp "$BIN_DIR/create-vhost.sh" "$HOME/.local/bin/create-vhost.sh"
 chmod +x "$HOME/.local/bin/create-vhost.sh"
+cp "$BIN_DIR/init-vhosts.sh" "$HOME/.local/bin/init-vhosts.sh"
+chmod +x "$HOME/.local/bin/init-vhosts.sh"
 
-echo -e "${GREEN}✓ create-vhost.sh installed to /usr/local/bin/ and ~/.local/bin/${NC}"
+echo -e "${GREEN}✓ create-vhost.sh and init-vhosts.sh installed to /usr/local/bin/ and ~/.local/bin/${NC}"
 
 # Create herd-watcher script with custom project directory
 echo "Creating herd-watcher script for: $PROJECT_DIR"
@@ -80,7 +89,9 @@ echo -e "${GREEN}✓ Systemd service file created${NC}"
 # Reload systemd and enable service
 systemctl --user daemon-reload
 systemctl --user enable herd-watcher.service
-systemctl --user start herd-watcher.service
+systemctl --user start herd-watcher.service || {
+    echo -e "${YELLOW}⚠ Service failed to start immediately (may start correctly after relogin)${NC}"
+}
 
 # Enable lingering so service runs even when not logged in
 sudo loginctl enable-linger "$USER"
@@ -116,6 +127,7 @@ echo ""
 echo -e "${CYAN}VHost System Configuration:${NC}"
 echo "  • Monitored directory: $PROJECT_DIR"
 echo "  • Service: herd-watcher.service"
-echo "  • Manual command: create-vhost.sh <project-path> [php-version]"
+echo "  • Single vhost: create-vhost.sh <project-path> [php-version]"
+echo "  • Bulk init:    init-vhosts.sh <projects-dir> [php-version]"
 echo ""
 echo -e "${GREEN}✓ VHost system setup complete${NC}"
