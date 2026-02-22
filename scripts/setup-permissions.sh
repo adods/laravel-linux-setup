@@ -27,18 +27,29 @@ echo "Adding $USER to www-data group..."
 sudo usermod -a -G www-data "$USER"
 echo -e "${GREEN}✓ User added to www-data group${NC}"
 
-# Ensure home directory is traversable by Apache (www-data)
-echo "Checking home directory permissions..."
-HOME_DIR=$(eval echo ~$USER)
-CURRENT_PERMS=$(stat -c "%a" "$HOME_DIR")
+# Ensure every directory in the path from / to PROJECT_DIR is traversable by Apache.
+# This handles both ~/Projects paths and external mounts like /media/user/Drive/Herd.
+echo "Checking directory traversal permissions for Apache..."
+CURRENT_PATH="$PROJECT_DIR"
+FIXED_DIRS=()
 
-# Check if "others" have execute permission
-if [[ ! "$CURRENT_PERMS" =~ [0-9][0-9][5-7] ]]; then
-    echo "Making home directory traversable for Apache..."
-    chmod o+rx "$HOME_DIR"
-    echo -e "${GREEN}✓ Home directory permissions updated${NC}"
+while [[ "$CURRENT_PATH" != "/" ]]; do
+    PERMS=$(stat -c "%a" "$CURRENT_PATH" 2>/dev/null)
+    # Check if "others" lack execute (traverse) permission
+    if [[ "${PERMS: -1}" =~ [0-3] ]]; then
+        sudo chmod o+x "$CURRENT_PATH"
+        FIXED_DIRS+=("$CURRENT_PATH")
+    fi
+    CURRENT_PATH=$(dirname "$CURRENT_PATH")
+done
+
+if [[ ${#FIXED_DIRS[@]} -gt 0 ]]; then
+    echo -e "${GREEN}✓ Fixed traversal permissions on:${NC}"
+    for DIR in "${FIXED_DIRS[@]}"; do
+        echo "    $DIR"
+    done
 else
-    echo -e "${GREEN}✓ Home directory already has correct permissions${NC}"
+    echo -e "${GREEN}✓ All directories in path are already traversable${NC}"
 fi
 
 # Set ownership and permissions on project directory

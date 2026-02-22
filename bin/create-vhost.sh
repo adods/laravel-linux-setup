@@ -38,7 +38,11 @@ detect_document_root() {
 
     # Check if it's a Laravel project (has artisan file)
     if [ -f "$project_path/artisan" ]; then
-        echo "$project_path/public"
+        if [ -d "$project_path/public" ]; then
+            echo "$project_path/public"
+        else
+            echo "$project_path"
+        fi
         return
     fi
 
@@ -152,6 +156,23 @@ fi
 # Enable site
 sudo a2ensite "${PROJECT_NAME}.test.conf" > /dev/null 2>&1
 echo -e "${GREEN}✓ Enabled site${NC}"
+
+# Ensure every directory in the path from / to PROJECT_DIR has o+x so Apache
+# (www-data) can traverse it. This handles both ~/Projects and external mounts
+# like /media/user/Drive/Herd where intermediate dirs may lack "others" execute.
+CURRENT_PATH="$PROJECT_DIR"
+while [[ "$CURRENT_PATH" != "/" ]]; do
+    PERMS=$(stat -c "%a" "$CURRENT_PATH" 2>/dev/null)
+    if [[ "${PERMS: -1}" =~ [0-3] ]]; then
+        pkexec chmod o+x "$CURRENT_PATH" 2>/dev/null || \
+        sudo chmod o+x "$CURRENT_PATH" 2>/dev/null || true
+    fi
+    CURRENT_PATH=$(dirname "$CURRENT_PATH")
+done
+
+# Make project files readable by Apache
+chmod -R o+rX "$PROJECT_DIR" 2>/dev/null || true
+echo -e "${GREEN}✓ Permissions fixed (Apache can now access project)${NC}"
 
 # Test Apache configuration
 if sudo apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
