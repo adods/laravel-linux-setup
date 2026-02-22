@@ -170,8 +170,9 @@ while [[ "$CURRENT_PATH" != "/" ]]; do
     CURRENT_PATH=$(dirname "$CURRENT_PATH")
 done
 
-# Make project files readable by Apache
-chmod -R o+rX "$PROJECT_DIR" 2>/dev/null || true
+# Make project files readable by Apache (dirs: o+rx, files: o+r only)
+find "$PROJECT_DIR" -type d -exec chmod o+rx {} \; 2>/dev/null || true
+find "$PROJECT_DIR" -type f -exec chmod o+r {} \; 2>/dev/null || true
 echo -e "${GREEN}✓ Permissions fixed (Apache can now access project)${NC}"
 
 # Test Apache configuration

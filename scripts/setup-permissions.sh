@@ -58,7 +58,8 @@ if [[ -d "$PROJECT_DIR" ]]; then
     sudo chown -R "$USER":www-data "$PROJECT_DIR"
 
     echo "Setting permissions on project directory..."
-    sudo chmod -R 775 "$PROJECT_DIR"
+    sudo find "$PROJECT_DIR" -type d -exec chmod 775 {} \;
+    sudo find "$PROJECT_DIR" -type f -exec chmod 664 {} \;
 
     echo "Applying setgid bit to directories..."
     sudo find "$PROJECT_DIR" -type d -exec chmod g+s {} \;
