@@ -12,6 +12,7 @@ set -e
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
+RED='\033[0;31m'
 NC='\033[0m'
 
 # Ensure XDG_RUNTIME_DIR is set so systemctl --user can reach the user systemd instance
@@ -19,9 +20,79 @@ if [ -z "$XDG_RUNTIME_DIR" ]; then
     export XDG_RUNTIME_DIR="/run/user/$(id -u)"
 fi
 
-PROJECT_DIR="$1"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && cd .. && pwd)"
 BIN_DIR="$SCRIPT_DIR/bin"
+
+# ─── Path migration mode ──────────────────────────────────────────────────────
+# Usage: setup-vhost.sh --migrate-paths OLD_PATH NEW_PATH
+# Updates DocumentRoot and Directory paths in all existing *.test.conf files,
+# updates the installed herd-watcher.sh, then reloads Apache.
+migrate_vhost_paths() {
+    local OLD_PATH="${1%/}"
+    local NEW_PATH="${2%/}"
+
+    echo -e "${YELLOW}Migrating vhost paths...${NC}"
+    echo "  Old: $OLD_PATH"
+    echo "  New: $NEW_PATH"
+    echo ""
+
+    local updated=0 skipped=0
+
+    for conf in /etc/apache2/sites-available/*.test.conf; do
+        [ -f "$conf" ] || continue
+        if grep -q "$OLD_PATH" "$conf"; then
+            echo "Updating: $(basename "$conf")..."
+            sed "s|$OLD_PATH|$NEW_PATH|g" "$conf" | sudo tee "$conf" > /dev/null
+            echo -e "  ${GREEN}✓ Updated${NC}"
+            updated=$((updated + 1))
+        else
+            skipped=$((skipped + 1))
+        fi
+    done
+
+    echo ""
+    echo "  Updated: $updated vhost(s), skipped (no match): $skipped"
+    echo ""
+
+    # Update installed herd-watcher if it references the old path
+    local watcher="$HOME/.local/bin/herd-watcher.sh"
+    if [ -f "$watcher" ] && grep -q "$OLD_PATH" "$watcher"; then
+        sed -i "s|$OLD_PATH|$NEW_PATH|g" "$watcher"
+        echo -e "${GREEN}✓ Updated herd-watcher.sh watch directory${NC}"
+    fi
+
+    # Validate and reload Apache
+    if sudo apache2ctl configtest 2>&1 | grep -q "Syntax OK"; then
+        sudo systemctl reload apache2
+        echo -e "${GREEN}✓ Apache reloaded${NC}"
+    else
+        echo -e "${RED}Error: Apache config test failed — check 'sudo apache2ctl configtest'${NC}"
+        exit 1
+    fi
+
+    # Restart herd-watcher so it picks up the new WATCH_DIR
+    if systemctl --user is-active --quiet herd-watcher.service 2>/dev/null; then
+        systemctl --user restart herd-watcher.service
+        echo -e "${GREEN}✓ Herd watcher restarted with new path${NC}"
+    fi
+
+    echo ""
+    echo -e "${GREEN}✓ Path migration complete${NC}"
+}
+
+if [[ "$1" == "--migrate-paths" ]]; then
+    OLD_PATH="$2"
+    NEW_PATH="$3"
+    if [[ -z "$OLD_PATH" || -z "$NEW_PATH" ]]; then
+        echo -e "${RED}Usage: setup-vhost.sh --migrate-paths OLD_PATH NEW_PATH${NC}"
+        exit 1
+    fi
+    migrate_vhost_paths "$OLD_PATH" "$NEW_PATH"
+    exit 0
+fi
+# ─────────────────────────────────────────────────────────────────────────────
+
+PROJECT_DIR="$1"
 
 if [[ -z "$PROJECT_DIR" ]]; then
     echo -e "${RED}Error: Project directory not provided${NC}"

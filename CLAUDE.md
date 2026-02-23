@@ -98,6 +98,22 @@ journalctl --user -u herd-watcher -f
 systemctl --user restart herd-watcher
 ```
 
+### Migrating VHost Paths
+
+When moving projects to a different base directory, use the `--migrate-paths` mode to update all
+existing `.test.conf` files at once, along with the installed herd-watcher watch directory.
+
+```bash
+# Update all vhost DocumentRoot/Directory entries and herd-watcher WATCH_DIR
+bash scripts/setup-vhost.sh --migrate-paths /media/adods/Data/Herd /srv/www
+```
+
+This will:
+1. Replace the old path in every `/etc/apache2/sites-available/*.test.conf`
+2. Update `~/.local/bin/herd-watcher.sh` `WATCH_DIR` if it matches the old path
+3. Validate Apache config and reload it
+4. Restart the herd-watcher systemd service
+
 ### Database Access
 
 ```bash
